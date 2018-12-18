@@ -448,6 +448,10 @@ public class CmmnRestResponseFactory {
         result.setCallbackType(caseInstance.getCallbackType());
         result.setTenantId(caseInstance.getTenantId());
 
+        for (String name : caseInstance.getCaseVariables().keySet()) {
+            result.addVariable(createRestVariable(name, caseInstance.getCaseVariables().get(name), RestVariableScope.LOCAL, caseInstance.getId(), VARIABLE_CASE, false, urlBuilder));
+        }
+
         return result;
     }
 
@@ -508,7 +512,7 @@ public class CmmnRestResponseFactory {
         result.setElementId(planItemInstance.getElementId());
         result.setReferenceId(planItemInstance.getReferenceId());
         result.setReferenceType(planItemInstance.getReferenceType());
-        result.setStartTime(planItemInstance.getStartTime());
+        result.setCreateTime(planItemInstance.getCreateTime());
         result.setStartUserId(planItemInstance.getStartUserId());
         result.setStage(planItemInstance.isStage());
         result.setCompleteable(planItemInstance.isCompleteable());
@@ -708,7 +712,7 @@ public class CmmnRestResponseFactory {
         result.setElementId(historicPlanItemInstance.getElementId());
         result.setPlanItemDefinitionId(historicPlanItemInstance.getPlanItemDefinitionId());
         result.setPlanItemDefinitionType(historicPlanItemInstance.getPlanItemDefinitionType());
-        result.setCreatedTime(historicPlanItemInstance.getCreatedTime());
+        result.setCreateTime(historicPlanItemInstance.getCreateTime());
         result.setLastAvailableTime(historicPlanItemInstance.getLastAvailableTime());
         result.setLastEnabledTime(historicPlanItemInstance.getLastEnabledTime());
         result.setLastDisabledTime(historicPlanItemInstance.getLastDisabledTime());

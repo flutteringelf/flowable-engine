@@ -28,17 +28,21 @@ import org.flowable.common.engine.api.delegate.event.FlowableEventListener;
 import org.flowable.engine.impl.migration.ProcessInstanceMigrationValidationResult;
 import org.flowable.engine.migration.ProcessInstanceMigrationBuilder;
 import org.flowable.engine.migration.ProcessInstanceMigrationDocument;
+import org.flowable.engine.runtime.ActivityInstance;
+import org.flowable.engine.runtime.ActivityInstanceQuery;
 import org.flowable.engine.runtime.ChangeActivityStateBuilder;
 import org.flowable.engine.runtime.DataObject;
 import org.flowable.engine.runtime.EventSubscriptionQuery;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ExecutionQuery;
+import org.flowable.engine.runtime.NativeActivityInstanceQuery;
 import org.flowable.engine.runtime.NativeExecutionQuery;
 import org.flowable.engine.runtime.NativeProcessInstanceQuery;
 import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.runtime.ProcessInstanceBuilder;
 import org.flowable.engine.runtime.ProcessInstanceQuery;
 import org.flowable.engine.task.Event;
+import org.flowable.entitylink.api.EntityLink;
 import org.flowable.form.api.FormInfo;
 import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.identitylink.api.IdentityLinkType;
@@ -521,6 +525,26 @@ public interface RuntimeService {
      * Retrieves the {@link IdentityLink}s associated with the given process instance. Such an {@link IdentityLink} informs how a certain user is involved with a process instance.
      */
     List<IdentityLink> getIdentityLinksForProcessInstance(String instanceId);
+    
+    /**
+     * Retrieves the {@link EntityLink}s associated with the given process instance.
+     */
+    List<EntityLink> getEntityLinkChildrenForProcessInstance(String instanceId);
+
+    /**
+     * Retrieves the {@link EntityLink}s associated with the given task.
+     */
+    List<EntityLink> getEntityLinkChildrenForTask(String taskId);
+
+    /**
+     * Retrieves the {@link EntityLink}s where the given process instance is referenced.
+     */
+    List<EntityLink> getEntityLinkParentsForProcessInstance(String instanceId);
+
+    /**
+     * Retrieves the {@link EntityLink}s where the given task is referenced.
+     */
+    List<EntityLink> getEntityLinkParentsForTask(String taskId);
 
     // Variables
     // ////////////////////////////////////////////////////////////////////
@@ -1010,6 +1034,18 @@ public interface RuntimeService {
      * creates a new {@link NativeProcessInstanceQuery} to query {@link ProcessInstance}s by SQL directly
      */
     NativeProcessInstanceQuery createNativeProcessInstanceQuery();
+
+    /**
+     * Creates a new {@link ActivityInstanceQuery} instance, that can be used to query activities in the currently running
+     * process instances.
+     */
+    ActivityInstanceQuery createActivityInstanceQuery();
+
+    /**
+     * creates a new {@link NativeActivityInstanceQuery} to query {@link ActivityInstance}s which are included
+     * in the cuby SQL directly.
+     */
+    NativeActivityInstanceQuery createNativeActivityInstanceQuery();
 
     /**
      * Creates a new {@link EventSubscriptionQuery} instance, that can be used to query the event subscriptions.

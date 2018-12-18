@@ -13,11 +13,18 @@
 
 package org.flowable.cmmn.rest.service.api.runtime;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.flowable.cmmn.api.history.HistoricCaseInstance;
@@ -34,6 +41,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * Test for all REST-operations related to a single Case instance resource.
  * 
  * @author Tijs Rademakers
+ * @author Filip Hrisafov
+ * @author Jose Antonio Alvarez
  */
 public class CaseInstanceCollectionResourceTest extends BaseSpringRestTestCase {
 
@@ -79,7 +88,41 @@ public class CaseInstanceCollectionResourceTest extends BaseSpringRestTestCase {
     }
 
     /**
-     * Test getting a list of process instance, using all tenant filters.
+     * Test getting a list of sorted case instance
+     */
+    @CmmnDeployment(resources = { "org/flowable/cmmn/rest/service/api/repository/oneHumanTaskCase.cmmn" })
+    public void testGetCaseInstancesSorted() throws Exception {
+        Instant initialTime = Instant.now();
+        cmmnEngineConfiguration.getClock().setCurrentTime(Date.from(initialTime));
+        String nowInstanceId = runtimeService.createCaseInstanceBuilder().caseDefinitionKey("oneHumanTaskCase").businessKey("now").start().getId();
+
+        cmmnEngineConfiguration.getClock().setCurrentTime(Date.from(initialTime.plus(1, ChronoUnit.HOURS)));
+        String nowPlus1InstanceId = runtimeService.createCaseInstanceBuilder().caseDefinitionKey("oneHumanTaskCase").businessKey("nowPlus1").start().getId();
+
+        cmmnEngineConfiguration.getClock().setCurrentTime(Date.from(initialTime.minus(1, ChronoUnit.HOURS)));
+        String nowMinus1InstanceId = runtimeService.createCaseInstanceBuilder().caseDefinitionKey("oneHumanTaskCase").businessKey("nowMinus1").start().getId();
+
+        List<String> sortedIds = new ArrayList<>();
+        sortedIds.add(nowInstanceId);
+        sortedIds.add(nowPlus1InstanceId);
+        sortedIds.add(nowMinus1InstanceId);
+        Collections.sort(sortedIds);
+
+        // Test without any parameters
+        String url = CmmnRestUrls.createRelativeResourceUrl(CmmnRestUrls.URL_CASE_INSTANCE_COLLECTION);
+        assertResultsExactlyPresentInDataResponse(url, sortedIds.toArray(new String[0]));
+
+        // Sort by start time
+        url = CmmnRestUrls.createRelativeResourceUrl(CmmnRestUrls.URL_CASE_INSTANCE_COLLECTION) + "?sort=startTime";
+        assertResultsExactlyPresentInDataResponse(url, nowMinus1InstanceId, nowInstanceId, nowPlus1InstanceId);
+
+        // Sort by start time desc
+        url = CmmnRestUrls.createRelativeResourceUrl(CmmnRestUrls.URL_CASE_INSTANCE_COLLECTION) + "?sort=startTime&order=desc";
+        assertResultsExactlyPresentInDataResponse(url, nowPlus1InstanceId, nowInstanceId, nowMinus1InstanceId);
+    }
+
+    /**
+     * Test getting a list of case instance, using all tenant filters.
      */
     @CmmnDeployment(resources = { "org/flowable/cmmn/rest/service/api/repository/oneHumanTaskCase.cmmn" })
     public void testGetCaseInstancesTenant() throws Exception {
@@ -118,6 +161,62 @@ public class CaseInstanceCollectionResourceTest extends BaseSpringRestTestCase {
             repositoryService.deleteDeployment(deployment.getId(), true);
         }
     }
+
+    /**
+     * Test getting a list of case instance, using the variable selector
+     */
+    @CmmnDeployment(resources = { "org/flowable/cmmn/rest/service/api/repository/oneHumanTaskCase.cmmn" })
+    public void testGetCaseInstancesWithVariables() throws Exception {
+        runtimeService.createCaseInstanceBuilder().caseDefinitionKey("oneHumanTaskCase").businessKey("myBusinessKey").variable("someVar", "someValue").start();
+
+        // Test without any parameters, no variables included by default
+        String url = CmmnRestUrls.createRelativeResourceUrl(CmmnRestUrls.URL_CASE_INSTANCE_COLLECTION);
+
+        CloseableHttpResponse response = executeRequest(new HttpGet(SERVER_URL_PREFIX + url), HttpStatus.SC_OK);
+
+        JsonNode rootNode = objectMapper.readTree(response.getEntity().getContent());
+        closeResponse(response);
+        assertTrue(rootNode.size() > 0);
+        assertEquals(1, rootNode.get("data").size());
+        JsonNode dataNode = rootNode.get("data").get(0);
+        JsonNode variableNodes = dataNode.get("variables");
+        assertEquals(0, variableNodes.size());
+
+        // Test excluding variables
+        url = CmmnRestUrls.createRelativeResourceUrl(CmmnRestUrls.URL_CASE_INSTANCE_COLLECTION) + "?includeCaseVariables=false";
+
+        response = executeRequest(new HttpGet(SERVER_URL_PREFIX + url), HttpStatus.SC_OK);
+
+        rootNode = objectMapper.readTree(response.getEntity().getContent());
+        closeResponse(response);
+        assertTrue(rootNode.size() > 0);
+        assertEquals(1, rootNode.get("data").size());
+        dataNode = rootNode.get("data").get(0);
+        variableNodes = dataNode.get("variables");
+        assertEquals(0, variableNodes.size());
+
+        // Test including variables
+        url = CmmnRestUrls.createRelativeResourceUrl(CmmnRestUrls.URL_CASE_INSTANCE_COLLECTION) + "?includeCaseVariables=true";
+
+        response = executeRequest(new HttpGet(SERVER_URL_PREFIX + url), HttpStatus.SC_OK);
+
+        rootNode = objectMapper.readTree(response.getEntity().getContent());
+        closeResponse(response);
+        assertTrue(rootNode.size() > 0);
+        assertEquals(1, rootNode.get("data").size());
+        dataNode = rootNode.get("data").get(0);
+        variableNodes = dataNode.get("variables");
+        assertEquals(1, variableNodes.size());
+
+        variableNodes = dataNode.get("variables");
+        assertEquals(1, variableNodes.size());
+        assertNotNull(variableNodes.get(0).get("name"));
+        assertNotNull(variableNodes.get(0).get("value"));
+
+        assertEquals("someVar", variableNodes.get(0).get("name").asText());
+        assertEquals("someValue", variableNodes.get(0).get("value").asText());
+    }
+
 
     /**
      * Test starting a case instance using caseDefinitionId, key caseDefinitionKey business-key.

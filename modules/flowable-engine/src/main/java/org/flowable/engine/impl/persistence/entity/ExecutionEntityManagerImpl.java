@@ -30,6 +30,7 @@ import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.api.FlowableObjectNotFoundException;
 import org.flowable.common.engine.api.delegate.event.FlowableEngineEventType;
 import org.flowable.common.engine.api.delegate.event.FlowableEventDispatcher;
+import org.flowable.common.engine.api.scope.ScopeTypes;
 import org.flowable.common.engine.impl.identity.Authentication;
 import org.flowable.common.engine.impl.interceptor.CommandContext;
 import org.flowable.common.engine.impl.persistence.cache.CachedEntityMatcher;
@@ -52,8 +53,12 @@ import org.flowable.engine.impl.util.TaskHelper;
 import org.flowable.engine.repository.ProcessDefinition;
 import org.flowable.engine.runtime.Execution;
 import org.flowable.engine.runtime.ProcessInstance;
-import org.flowable.identitylink.service.IdentityLinkService;
+import org.flowable.entitylink.api.EntityLink;
+import org.flowable.entitylink.api.EntityLinkService;
+import org.flowable.entitylink.api.EntityLinkType;
+import org.flowable.entitylink.service.impl.persistence.entity.EntityLinkEntity;
 import org.flowable.identitylink.api.IdentityLinkType;
+import org.flowable.identitylink.service.IdentityLinkService;
 import org.flowable.identitylink.service.impl.persistence.entity.IdentityLinkEntity;
 import org.flowable.identitylink.service.impl.persistence.entity.data.impl.cachematcher.IdentityLinksByProcessInstanceMatcher;
 import org.flowable.job.service.JobService;
@@ -225,13 +230,17 @@ public class ExecutionEntityManagerImpl extends AbstractEntityManager<ExecutionE
     // CREATE METHODS
 
     @Override
-    public ExecutionEntity createProcessInstanceExecution(ProcessDefinition processDefinition, String businessKey, String tenantId,
-                                                          String initiatorVariableName, String startActivityId) {
+    public ExecutionEntity createProcessInstanceExecution(ProcessDefinition processDefinition, String predefinedProcessInstanceId, 
+                    String businessKey, String tenantId, String initiatorVariableName, String startActivityId) {
 
         ExecutionEntity processInstanceExecution = executionDataManager.create();
 
         if (CountingEntityUtil.isExecutionRelatedEntityCountEnabledGlobally()) {
             ((CountingExecutionEntity) processInstanceExecution).setCountEnabled(true);
+        }
+        
+        if (predefinedProcessInstanceId != null) {
+            processInstanceExecution.setId(predefinedProcessInstanceId);
         }
 
         processInstanceExecution.setProcessDefinitionId(processDefinition.getId());
@@ -426,6 +435,7 @@ public class ExecutionEntityManagerImpl extends AbstractEntityManager<ExecutionE
         if (deleteReason == null) {
             deleteReason = DeleteReason.PROCESS_INSTANCE_DELETED;
         }
+        getActivityInstanceEntityManager().deleteActivityInstancesByProcessInstanceId(execution.getId());
 
         for (ExecutionEntity subExecutionEntity : execution.getExecutions()) {
             if (subExecutionEntity.isMultiInstanceRoot()) {
@@ -491,7 +501,7 @@ public class ExecutionEntityManagerImpl extends AbstractEntityManager<ExecutionE
                 && executionEntity.getCurrentFlowElement() != null
                 && !executionEntity.isMultiInstanceRoot()
                 && !(executionEntity.getCurrentFlowElement() instanceof BoundaryEvent)) {  // Boundary events will handle the history themselves (see TriggerExecutionOperation for example)
-            getHistoryManager().recordActivityEnd(executionEntity, deleteReason);
+            CommandContextUtil.getActivityInstanceEntityManager().recordActivityEnd(executionEntity, deleteReason);
         }
         deleteRelatedDataForExecution(executionEntity, deleteReason);
         delete(executionEntity);
@@ -752,11 +762,18 @@ public class ExecutionEntityManagerImpl extends AbstractEntityManager<ExecutionE
                 && CommandContextUtil.getProcessEngineConfiguration(commandContext).getEventDispatcher().isEnabled();
         
         deleteIdentityLinks(executionEntity, commandContext, eventDispatcherEnabled);
+        deleteEntityLinks(executionEntity, commandContext, eventDispatcherEnabled);
         deleteVariables(executionEntity, commandContext, enableExecutionRelationshipCounts, eventDispatcherEnabled);
         deleteUserTasks(executionEntity, deleteReason, commandContext, enableExecutionRelationshipCounts, eventDispatcherEnabled);
         deleteJobs(executionEntity, commandContext, enableExecutionRelationshipCounts, eventDispatcherEnabled);
         deleteEventSubScriptions(executionEntity, enableExecutionRelationshipCounts, eventDispatcherEnabled);
+        deleteActivityInstances(executionEntity, commandContext);
+    }
 
+    protected void deleteActivityInstances(ExecutionEntity executionEntity, CommandContext commandContext) {
+        if (executionEntity.isProcessInstanceType()) {
+            CommandContextUtil.getActivityInstanceEntityManager(commandContext).deleteActivityInstancesByProcessInstanceId(executionEntity.getId());
+        }
     }
 
     protected void deleteIdentityLinks(ExecutionEntity executionEntity, CommandContext commandContext, boolean eventDispatcherEnabled) {
@@ -773,6 +790,25 @@ public class ExecutionEntityManagerImpl extends AbstractEntityManager<ExecutionE
             
             if (deleteIdentityLinks) {
                 identityLinkService.deleteIdentityLinksByProcessInstanceId(executionEntity.getId());
+            }
+        }
+    }
+    
+    protected void deleteEntityLinks(ExecutionEntity executionEntity, CommandContext commandContext, boolean eventDispatcherEnabled) {
+        if (processEngineConfiguration.isEnableEntityLinks() && executionEntity.isProcessInstanceType()) {
+            EntityLinkService entityLinkService = CommandContextUtil.getEntityLinkService(commandContext);
+            boolean deleteEntityLinks = true;
+            if (eventDispatcherEnabled) {
+                List<EntityLink> entityLinks = entityLinkService.findEntityLinksByScopeIdAndType(
+                                executionEntity.getId(), ScopeTypes.BPMN, EntityLinkType.CHILD);
+                for (EntityLink entityLink : entityLinks) {
+                    fireEntityDeletedEvent((EntityLinkEntity) entityLink);
+                }
+                deleteEntityLinks = !entityLinks.isEmpty();
+            }
+            
+            if (deleteEntityLinks) {
+                entityLinkService.deleteEntityLinksByScopeIdAndType(executionEntity.getId(), ScopeTypes.BPMN);
             }
         }
     }

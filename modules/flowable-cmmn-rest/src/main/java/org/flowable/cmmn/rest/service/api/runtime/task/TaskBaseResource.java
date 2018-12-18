@@ -186,6 +186,9 @@ public class TaskBaseResource {
         if (request.getCaseInstanceId() != null) {
             taskQuery.caseInstanceId(request.getCaseInstanceId());
         }
+        if (request.getCaseInstanceIdWithChildren() != null) {
+            taskQuery.caseInstanceIdWithChildren(request.getCaseInstanceIdWithChildren());
+        }
         if (request.getCreatedOn() != null) {
             taskQuery.taskCreatedOn(request.getCreatedOn());
         }
@@ -264,7 +267,7 @@ public class TaskBaseResource {
         }
         
         if (restApiInterceptor != null) {
-            restApiInterceptor.accessTaskInfoWithQuery(taskQuery);
+            restApiInterceptor.accessTaskInfoWithQuery(taskQuery, request);
         }
 
         return paginateList(requestParams, request, taskQuery, "id", properties, restResponseFactory::createTaskResponseList);

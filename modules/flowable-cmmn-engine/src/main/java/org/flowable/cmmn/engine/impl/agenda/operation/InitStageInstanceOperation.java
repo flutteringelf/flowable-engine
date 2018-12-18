@@ -35,7 +35,7 @@ public class InitStageInstanceOperation extends AbstractPlanItemInstanceOperatio
         String oldState = planItemInstanceEntity.getState();
         String newState = PlanItemInstanceState.ACTIVE;
         planItemInstanceEntity.setState(newState);
-        PlanItemLifeCycleListenerUtil.callLifeCycleListeners(commandContext, planItemInstanceEntity, oldState, newState);
+        PlanItemLifeCycleListenerUtil.callLifecycleListeners(commandContext, planItemInstanceEntity, oldState, newState);
 
         planItemInstanceEntity.setStage(true);
         
@@ -43,9 +43,10 @@ public class InitStageInstanceOperation extends AbstractPlanItemInstanceOperatio
                 stage.getPlanItems(), 
                 planItemInstanceEntity.getCaseDefinitionId(), 
                 planItemInstanceEntity.getCaseInstanceId(), 
-                planItemInstanceEntity.getId(), 
+                planItemInstanceEntity,
                 planItemInstanceEntity.getTenantId());
 
+        planItemInstanceEntity.setLastStartedTime(getCurrentTime(commandContext));
         CommandContextUtil.getCmmnHistoryManager(commandContext).recordPlanItemInstanceStarted(planItemInstanceEntity);
     }
 

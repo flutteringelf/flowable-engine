@@ -14,7 +14,6 @@
 package org.flowable.cmmn.rest.service.api.runtime.planitem;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
@@ -117,12 +116,12 @@ public class PlanItemInstanceCollectionResource extends PlanItemInstanceBaseReso
             queryRequest.setReferenceType(allRequestParams.get("referenceType"));
         }
         
-        if (allRequestParams.containsKey("startedBefore")) {
-            queryRequest.setStartedBefore(RequestUtil.getDate(allRequestParams, "startedBefore"));
+        if (allRequestParams.containsKey("createdBefore")) {
+            queryRequest.setCreatedBefore(RequestUtil.getDate(allRequestParams, "createdBefore"));
         }
         
-        if (allRequestParams.containsKey("startedAfter")) {
-            queryRequest.setStartedAfter(RequestUtil.getDate(allRequestParams, "startedAfter"));
+        if (allRequestParams.containsKey("createdAfter")) {
+            queryRequest.setCreatedAfter(RequestUtil.getDate(allRequestParams, "createdAfter"));
         }
         
         if (allRequestParams.containsKey("startUserId")) {

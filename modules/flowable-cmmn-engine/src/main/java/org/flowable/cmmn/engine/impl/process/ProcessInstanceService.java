@@ -12,16 +12,27 @@
  */
 package org.flowable.cmmn.engine.impl.process;
 
+import java.util.List;
 import java.util.Map;
+
+import org.flowable.cmmn.model.IOParameter;
 
 /**
  * @author Joram Barrez
  */
 public interface ProcessInstanceService {
     
-    String startProcessInstanceByKey(String processDefinitionKey, String tenantId, Map<String, Object> inParametersMap);
+    String generateNewProcessInstanceId();
 
-    String startProcessInstanceByKey(String processDefinitionKey, String planItemInstanceId, String tenantId, Map<String, Object> inParametersMap);
+    String startProcessInstanceByKey(String processDefinitionKey, String predefinedProcessInstanceId, String tenantId, boolean fallbackToDefaultTenant,
+                    Map<String, Object> inParametersMap);
+
+    String startProcessInstanceByKey(String processDefinitionKey, String predefinedProcessInstanceId, String planItemInstanceId,
+                    String tenantId, boolean fallbackToDefaultTenant, Map<String, Object> inParametersMap);
+    
+    void triggerCaseTask(String executionId, Map<String, Object> variables);
+    
+    List<IOParameter> getOutputParametersOfCaseTask(String executionId);
 
     void deleteProcessInstance(String processInstanceId);
 

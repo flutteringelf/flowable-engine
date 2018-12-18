@@ -45,6 +45,10 @@ import org.flowable.engine.impl.cmd.GetActiveAdhocSubProcessesCmd;
 import org.flowable.engine.impl.cmd.GetDataObjectCmd;
 import org.flowable.engine.impl.cmd.GetDataObjectsCmd;
 import org.flowable.engine.impl.cmd.GetEnabledActivitiesForAdhocSubProcessCmd;
+import org.flowable.engine.impl.cmd.GetEntityLinkChildrenForProcessInstanceCmd;
+import org.flowable.engine.impl.cmd.GetEntityLinkChildrenForTaskCmd;
+import org.flowable.engine.impl.cmd.GetEntityLinkParentsForProcessInstanceCmd;
+import org.flowable.engine.impl.cmd.GetEntityLinkParentsForTaskCmd;
 import org.flowable.engine.impl.cmd.GetExecutionVariableCmd;
 import org.flowable.engine.impl.cmd.GetExecutionVariableInstanceCmd;
 import org.flowable.engine.impl.cmd.GetExecutionVariableInstancesCmd;
@@ -64,6 +68,7 @@ import org.flowable.engine.impl.cmd.SetExecutionVariablesCmd;
 import org.flowable.engine.impl.cmd.SetProcessInstanceBusinessKeyCmd;
 import org.flowable.engine.impl.cmd.SetProcessInstanceNameCmd;
 import org.flowable.engine.impl.cmd.SignalEventReceivedCmd;
+import org.flowable.engine.impl.cmd.StartProcessInstanceAsyncCmd;
 import org.flowable.engine.impl.cmd.StartProcessInstanceByMessageCmd;
 import org.flowable.engine.impl.cmd.StartProcessInstanceCmd;
 import org.flowable.engine.impl.cmd.StartProcessInstanceWithFormCmd;
@@ -86,6 +91,7 @@ import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.engine.runtime.ProcessInstanceBuilder;
 import org.flowable.engine.runtime.ProcessInstanceQuery;
 import org.flowable.engine.task.Event;
+import org.flowable.entitylink.api.EntityLink;
 import org.flowable.form.api.FormInfo;
 import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.identitylink.api.IdentityLinkType;
@@ -185,6 +191,11 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     @Override
     public NativeProcessInstanceQuery createNativeProcessInstanceQuery() {
         return new NativeProcessInstanceQueryImpl(commandExecutor);
+    }
+
+    @Override
+    public NativeActivityInstanceQueryImpl createNativeActivityInstanceQuery() {
+        return new NativeActivityInstanceQueryImpl(commandExecutor);
     }
 
     @Override
@@ -473,10 +484,35 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     public List<IdentityLink> getIdentityLinksForProcessInstance(String processInstanceId) {
         return commandExecutor.execute(new GetIdentityLinksForProcessInstanceCmd(processInstanceId));
     }
+    
+    @Override
+    public List<EntityLink> getEntityLinkChildrenForProcessInstance(String processInstanceId) {
+        return commandExecutor.execute(new GetEntityLinkChildrenForProcessInstanceCmd(processInstanceId));
+    }
+
+    @Override
+    public List<EntityLink> getEntityLinkChildrenForTask(String taskId) {
+        return commandExecutor.execute(new GetEntityLinkChildrenForTaskCmd(taskId));
+    }
+
+    @Override
+    public List<EntityLink> getEntityLinkParentsForProcessInstance(String processInstanceId) {
+        return commandExecutor.execute(new GetEntityLinkParentsForProcessInstanceCmd(processInstanceId));
+    }
+
+    @Override
+    public List<EntityLink> getEntityLinkParentsForTask(String taskId) {
+        return commandExecutor.execute(new GetEntityLinkParentsForTaskCmd(taskId));
+    }
 
     @Override
     public ProcessInstanceQuery createProcessInstanceQuery() {
         return new ProcessInstanceQueryImpl(commandExecutor);
+    }
+
+    @Override
+    public ActivityInstanceQueryImpl createActivityInstanceQuery() {
+        return new ActivityInstanceQueryImpl(commandExecutor);
     }
 
     @Override
@@ -675,6 +711,14 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
             return commandExecutor.execute(new StartProcessInstanceByMessageCmd(processInstanceBuilder));
         } else {
             throw new FlowableIllegalArgumentException("No processDefinitionId, processDefinitionKey nor messageName provided");
+        }
+    }
+
+    public ProcessInstance startProcessInstanceAsync(ProcessInstanceBuilderImpl processInstanceBuilder) {
+        if (processInstanceBuilder.getProcessDefinitionId() != null || processInstanceBuilder.getProcessDefinitionKey() != null) {
+            return (ProcessInstance) commandExecutor.execute(new StartProcessInstanceAsyncCmd(processInstanceBuilder));
+        } else {
+            throw new FlowableIllegalArgumentException("No processDefinitionId, processDefinitionKey provided");
         }
     }
 

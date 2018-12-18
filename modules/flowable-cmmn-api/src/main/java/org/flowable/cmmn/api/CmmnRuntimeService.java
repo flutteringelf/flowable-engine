@@ -18,10 +18,12 @@ import java.util.Map;
 
 import org.flowable.cmmn.api.runtime.CaseInstanceBuilder;
 import org.flowable.cmmn.api.runtime.CaseInstanceQuery;
+import org.flowable.cmmn.api.runtime.GenericEventListenerInstanceQuery;
 import org.flowable.cmmn.api.runtime.MilestoneInstanceQuery;
 import org.flowable.cmmn.api.runtime.PlanItemInstanceQuery;
 import org.flowable.cmmn.api.runtime.UserEventListenerInstanceQuery;
 import org.flowable.common.engine.api.FlowableObjectNotFoundException;
+import org.flowable.entitylink.api.EntityLink;
 import org.flowable.form.api.FormInfo;
 import org.flowable.identitylink.api.IdentityLink;
 
@@ -41,12 +43,18 @@ public interface CmmnRuntimeService {
     void disablePlanItemInstance(String planItemInstanceId);
 
     void completeStagePlanItemInstance(String planItemInstanceId);
+
+    void completeStagePlanItemInstance(String planItemInstanceId, boolean force);
     
     void completeCaseInstance(String caseInstanceId);
     
     void terminateCaseInstance(String caseInstanceId);
-    
+
+    void terminatePlanItemInstance(String planItemInstanceId);
+
     void evaluateCriteria(String caseInstanceId);
+    
+    void completeGenericEventListenerInstance(String genericEventListenerInstanceId);
 
     void completeUserEventListenerInstance(String userEventListenerInstanceId);
     
@@ -92,6 +100,8 @@ public interface CmmnRuntimeService {
     PlanItemInstanceQuery createPlanItemInstanceQuery();
     
     MilestoneInstanceQuery createMilestoneInstanceQuery();
+    
+    GenericEventListenerInstanceQuery createGenericEventListenerInstanceQuery();
 
     UserEventListenerInstanceQuery createUserEventListenerInstanceQuery();
     
@@ -155,6 +165,16 @@ public interface CmmnRuntimeService {
      * Retrieves the {@link IdentityLink}s associated with the given case instance. Such an identity link informs how a certain user is involved with a case instance.
      */
     List<IdentityLink> getIdentityLinksForCaseInstance(String instanceId);
+    
+    /**
+     * Retrieves the {@link EntityLink}s associated with the given case instance.
+     */
+    List<EntityLink> getEntityLinkChildrenForCaseInstance(String instanceId);
+
+    /**
+     * Retrieves the {@link EntityLink}s where the given case instance is referenced.
+     */
+    List<EntityLink> getEntityLinkParentsForCaseInstance(String instanceId);
 
     /**
      * Gets a Form model instance of the start form of a specific case definition or case instance

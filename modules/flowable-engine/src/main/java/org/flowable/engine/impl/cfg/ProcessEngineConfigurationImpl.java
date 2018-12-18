@@ -151,6 +151,7 @@ import org.flowable.engine.impl.bpmn.parser.handler.BoundaryEventParseHandler;
 import org.flowable.engine.impl.bpmn.parser.handler.BusinessRuleParseHandler;
 import org.flowable.engine.impl.bpmn.parser.handler.CallActivityParseHandler;
 import org.flowable.engine.impl.bpmn.parser.handler.CancelEventDefinitionParseHandler;
+import org.flowable.engine.impl.bpmn.parser.handler.CaseServiceTaskParseHandler;
 import org.flowable.engine.impl.bpmn.parser.handler.CompensateEventDefinitionParseHandler;
 import org.flowable.engine.impl.bpmn.parser.handler.EndEventParseHandler;
 import org.flowable.engine.impl.bpmn.parser.handler.ErrorEventDefinitionParseHandler;
@@ -182,6 +183,7 @@ import org.flowable.engine.impl.cmd.RedeployV5ProcessDefinitionsCmd;
 import org.flowable.engine.impl.cmd.ValidateExecutionRelatedEntityCountCfgCmd;
 import org.flowable.engine.impl.cmd.ValidateTaskRelatedEntityCountCfgCmd;
 import org.flowable.engine.impl.cmd.ValidateV5EntitiesCmd;
+import org.flowable.engine.impl.cmmn.CaseInstanceService;
 import org.flowable.engine.impl.db.DbIdGenerator;
 import org.flowable.engine.impl.db.EntityDependencyOrder;
 import org.flowable.engine.impl.db.ProcessDbSchemaManager;
@@ -213,6 +215,9 @@ import org.flowable.engine.impl.history.async.HistoryJsonConstants;
 import org.flowable.engine.impl.history.async.json.transformer.ActivityEndHistoryJsonTransformer;
 import org.flowable.engine.impl.history.async.json.transformer.ActivityFullHistoryJsonTransformer;
 import org.flowable.engine.impl.history.async.json.transformer.ActivityStartHistoryJsonTransformer;
+import org.flowable.engine.impl.history.async.json.transformer.ActivityUpdateHistoryJsonTransformer;
+import org.flowable.engine.impl.history.async.json.transformer.EntityLinkCreatedHistoryJsonTransformer;
+import org.flowable.engine.impl.history.async.json.transformer.EntityLinkDeletedHistoryJsonTransformer;
 import org.flowable.engine.impl.history.async.json.transformer.FormPropertiesSubmittedHistoryJsonTransformer;
 import org.flowable.engine.impl.history.async.json.transformer.HistoricDetailVariableUpdateHistoryJsonTransformer;
 import org.flowable.engine.impl.history.async.json.transformer.IdentityLinkCreatedHistoryJsonTransformer;
@@ -250,6 +255,8 @@ import org.flowable.engine.impl.migration.ProcessInstanceMigrationManagerImpl;
 import org.flowable.engine.impl.persistence.deploy.DeploymentManager;
 import org.flowable.engine.impl.persistence.deploy.ProcessDefinitionCacheEntry;
 import org.flowable.engine.impl.persistence.deploy.ProcessDefinitionInfoCache;
+import org.flowable.engine.impl.persistence.entity.ActivityInstanceEntityManager;
+import org.flowable.engine.impl.persistence.entity.ActivityInstanceEntityManagerImpl;
 import org.flowable.engine.impl.persistence.entity.AttachmentEntityManager;
 import org.flowable.engine.impl.persistence.entity.AttachmentEntityManagerImpl;
 import org.flowable.engine.impl.persistence.entity.ByteArrayEntityManager;
@@ -283,6 +290,7 @@ import org.flowable.engine.impl.persistence.entity.ResourceEntityManager;
 import org.flowable.engine.impl.persistence.entity.ResourceEntityManagerImpl;
 import org.flowable.engine.impl.persistence.entity.TableDataManager;
 import org.flowable.engine.impl.persistence.entity.TableDataManagerImpl;
+import org.flowable.engine.impl.persistence.entity.data.ActivityInstanceDataManager;
 import org.flowable.engine.impl.persistence.entity.data.AttachmentDataManager;
 import org.flowable.engine.impl.persistence.entity.data.ByteArrayDataManager;
 import org.flowable.engine.impl.persistence.entity.data.CommentDataManager;
@@ -298,6 +306,7 @@ import org.flowable.engine.impl.persistence.entity.data.ProcessDefinitionDataMan
 import org.flowable.engine.impl.persistence.entity.data.ProcessDefinitionInfoDataManager;
 import org.flowable.engine.impl.persistence.entity.data.PropertyDataManager;
 import org.flowable.engine.impl.persistence.entity.data.ResourceDataManager;
+import org.flowable.engine.impl.persistence.entity.data.impl.MybatisActivityInstanceDataManager;
 import org.flowable.engine.impl.persistence.entity.data.impl.MybatisAttachmentDataManager;
 import org.flowable.engine.impl.persistence.entity.data.impl.MybatisByteArrayDataManager;
 import org.flowable.engine.impl.persistence.entity.data.impl.MybatisCommentDataManager;
@@ -317,6 +326,8 @@ import org.flowable.engine.impl.scripting.VariableScopeResolverFactory;
 import org.flowable.engine.impl.util.ProcessInstanceHelper;
 import org.flowable.engine.migration.ProcessInstanceMigrationManager;
 import org.flowable.engine.parse.BpmnParseHandler;
+import org.flowable.entitylink.service.EntityLinkServiceConfiguration;
+import org.flowable.entitylink.service.impl.db.EntityLinkDbSchemaManager;
 import org.flowable.form.api.FormFieldHandler;
 import org.flowable.identitylink.service.IdentityLinkEventHandler;
 import org.flowable.identitylink.service.IdentityLinkServiceConfiguration;
@@ -387,8 +398,6 @@ import org.flowable.variable.service.impl.types.SerializableType;
 import org.flowable.variable.service.impl.types.ShortType;
 import org.flowable.variable.service.impl.types.StringType;
 import org.flowable.variable.service.impl.types.UUIDType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -398,8 +407,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfiguration implements
         ScriptingEngineAwareEngineConfiguration, HasExpressionManagerEngineConfiguration {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(ProcessEngineConfigurationImpl.class);
 
     public static final String DEFAULT_WS_SYNC_FACTORY = "org.flowable.engine.impl.webservice.CxfWebServiceClientFactory";
 
@@ -430,6 +437,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     protected EventLogEntryDataManager eventLogEntryDataManager;
     protected EventSubscriptionDataManager eventSubscriptionDataManager;
     protected ExecutionDataManager executionDataManager;
+    protected ActivityInstanceDataManager activityInstanceDataManager;
     protected HistoricActivityInstanceDataManager historicActivityInstanceDataManager;
     protected HistoricDetailDataManager historicDetailDataManager;
     protected HistoricProcessInstanceDataManager historicProcessInstanceDataManager;
@@ -448,6 +456,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     protected EventLogEntryEntityManager eventLogEntryEntityManager;
     protected EventSubscriptionEntityManager eventSubscriptionEntityManager;
     protected ExecutionEntityManager executionEntityManager;
+    protected ActivityInstanceEntityManager activityInstanceEntityManager;
     protected HistoricActivityInstanceEntityManager historicActivityInstanceEntityManager;
     protected HistoricDetailEntityManager historicDetailEntityManager;
     protected HistoricProcessInstanceEntityManager historicProcessInstanceEntityManager;
@@ -484,8 +493,11 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     
     protected VariableServiceConfiguration variableServiceConfiguration;
     protected IdentityLinkServiceConfiguration identityLinkServiceConfiguration;
+    protected EntityLinkServiceConfiguration entityLinkServiceConfiguration;
     protected TaskServiceConfiguration taskServiceConfiguration;
     protected JobServiceConfiguration jobServiceConfiguration;
+    
+    protected boolean enableEntityLinks;
 
     // DEPLOYERS //////////////////////////////////////////////////////////////////
 
@@ -529,6 +541,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     protected ProcessInstanceHelper processInstanceHelper;
     protected ListenerNotificationHelper listenerNotificationHelper;
     protected FormHandlerHelper formHandlerHelper;
+    
+    protected CaseInstanceService caseInstanceService;
 
     // ASYNC EXECUTOR ///////////////////////////////////////////////////////////
 
@@ -857,6 +871,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     protected FlowableEngineAgendaFactory agendaFactory;
 
     protected SchemaManager identityLinkSchemaManager;
+    protected SchemaManager entityLinkSchemaManager;
     protected SchemaManager variableSchemaManager;
     protected SchemaManager taskSchemaManager;
     protected SchemaManager jobSchemaManager;
@@ -978,6 +993,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         initFlowable5CompatibilityHandler();
         initVariableServiceConfiguration();
         initIdentityLinkServiceConfiguration();
+        initEntityLinkServiceConfiguration();
         initTaskServiceConfiguration();
         initJobServiceConfiguration();
         initAsyncExecutor();
@@ -1047,6 +1063,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         
         initProcessSchemaManager();
         initIdentityLinkSchemaManager();
+        initEntityLinkSchemaManager();
         initVariableSchemaManager();
         initTaskSchemaManager();
         initJobSchemaManager();
@@ -1077,6 +1094,12 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     protected void initIdentityLinkSchemaManager() {
         if (this.identityLinkSchemaManager == null) {
             this.identityLinkSchemaManager = new IdentityLinkDbSchemaManager();
+        }
+    }
+    
+    protected void initEntityLinkSchemaManager() {
+        if (this.entityLinkSchemaManager == null) {
+            this.entityLinkSchemaManager = new EntityLinkDbSchemaManager();
         }
     }
 
@@ -1147,6 +1170,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         if (historicActivityInstanceDataManager == null) {
             historicActivityInstanceDataManager = new MybatisHistoricActivityInstanceDataManager(this);
         }
+        if (activityInstanceDataManager == null) {
+            activityInstanceDataManager = new MybatisActivityInstanceDataManager(this);
+        }
         if (historicDetailDataManager == null) {
             historicDetailDataManager = new MybatisHistoricDetailDataManager(this);
         }
@@ -1193,6 +1219,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         }
         if (executionEntityManager == null) {
             executionEntityManager = new ExecutionEntityManagerImpl(this, executionDataManager);
+        }
+        if (activityInstanceEntityManager == null) {
+            activityInstanceEntityManager = new ActivityInstanceEntityManagerImpl(this, activityInstanceDataManager);
         }
         if (historicActivityInstanceEntityManager == null) {
             historicActivityInstanceEntityManager = new HistoricActivityInstanceEntityManagerImpl(this, historicActivityInstanceDataManager);
@@ -1371,6 +1400,24 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
     protected IdentityLinkServiceConfiguration instantiateIdentityLinkServiceConfiguration() {
         return new IdentityLinkServiceConfiguration();
+    }
+    
+    public void initEntityLinkServiceConfiguration() {
+        if (this.enableEntityLinks) {
+            this.entityLinkServiceConfiguration = instantiateEntityLinkServiceConfiguration();
+            this.entityLinkServiceConfiguration.setHistoryLevel(this.historyLevel);
+            this.entityLinkServiceConfiguration.setClock(this.clock);
+            this.entityLinkServiceConfiguration.setObjectMapper(this.objectMapper);
+            this.entityLinkServiceConfiguration.setEventDispatcher(this.eventDispatcher);
+    
+            this.entityLinkServiceConfiguration.init();
+    
+            addServiceConfiguration(EngineConfigurationConstants.KEY_ENTITY_LINK_SERVICE_CONFIG, this.entityLinkServiceConfiguration);
+        }
+    }
+
+    protected EntityLinkServiceConfiguration instantiateEntityLinkServiceConfiguration() {
+        return new EntityLinkServiceConfiguration();
     }
 
     public void initTaskServiceConfiguration() {
@@ -1747,6 +1794,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         bpmnParserHandlers.add(new BoundaryEventParseHandler());
         bpmnParserHandlers.add(new BusinessRuleParseHandler());
         bpmnParserHandlers.add(new CallActivityParseHandler());
+        bpmnParserHandlers.add(new CaseServiceTaskParseHandler());
         bpmnParserHandlers.add(new CancelEventDefinitionParseHandler());
         bpmnParserHandlers.add(new CompensateEventDefinitionParseHandler());
         bpmnParserHandlers.add(new EndEventParseHandler());
@@ -1800,7 +1848,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
                     Class<?> handledType = defaultBpmnParseHandler.getHandledTypes().iterator().next();
                     if (customParseHandlerMap.containsKey(handledType)) {
                         BpmnParseHandler newBpmnParseHandler = customParseHandlerMap.get(handledType);
-                        LOGGER.info("Replacing default BpmnParseHandler {} with {}", defaultBpmnParseHandler.getClass().getName(), newBpmnParseHandler.getClass().getName());
+                        logger.info("Replacing default BpmnParseHandler {} with {}", defaultBpmnParseHandler.getClass().getName(), newBpmnParseHandler.getClass().getName());
                         bpmnParserHandlers.set(i, newBpmnParseHandler);
                     }
                 }
@@ -1892,6 +1940,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         historyJsonTransformers.add(new ActivityStartHistoryJsonTransformer());
         historyJsonTransformers.add(new ActivityEndHistoryJsonTransformer());
         historyJsonTransformers.add(new ActivityFullHistoryJsonTransformer());
+        historyJsonTransformers.add(new ActivityUpdateHistoryJsonTransformer());
 
         historyJsonTransformers.add(new TaskCreatedHistoryJsonTransformer());
         historyJsonTransformers.add(new TaskEndedHistoryJsonTransformer());
@@ -1902,6 +1951,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         
         historyJsonTransformers.add(new IdentityLinkCreatedHistoryJsonTransformer());
         historyJsonTransformers.add(new IdentityLinkDeletedHistoryJsonTransformer());
+        
+        historyJsonTransformers.add(new EntityLinkCreatedHistoryJsonTransformer());
+        historyJsonTransformers.add(new EntityLinkDeletedHistoryJsonTransformer());
         
         historyJsonTransformers.add(new VariableCreatedHistoryJsonTransformer());
         historyJsonTransformers.add(new VariableUpdatedHistoryJsonTransformer());
@@ -2388,7 +2440,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
             flowable5CompatibilityHandler = flowable5CompatibilityHandlerFactory.createFlowable5CompatibilityHandler();
 
             if (flowable5CompatibilityHandler != null) {
-                LOGGER.info("Found compatibility handler instance : {}", flowable5CompatibilityHandler.getClass());
+                logger.info("Found compatibility handler instance : {}", flowable5CompatibilityHandler.getClass());
 
                 flowable5CompatibilityHandler.setFlowable6ProcessEngineConfiguration(this);
             }
@@ -3038,6 +3090,15 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         return this;
     }
 
+    public CaseInstanceService getCaseInstanceService() {
+        return caseInstanceService;
+    }
+
+    public ProcessEngineConfigurationImpl setCaseInstanceService(CaseInstanceService caseInstanceService) {
+        this.caseInstanceService = caseInstanceService;
+        return this;
+    }
+
     @Override
     public ProcessEngineConfigurationImpl setSqlSessionFactory(SqlSessionFactory sqlSessionFactory) {
         this.sqlSessionFactory = sqlSessionFactory;
@@ -3540,6 +3601,15 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         return this;
     }
 
+    public ActivityInstanceDataManager getActivityInstanceDataManager() {
+        return activityInstanceDataManager;
+    }
+
+    public ProcessEngineConfigurationImpl setActivityInstanceDataManager(ActivityInstanceDataManager activityInstanceDataManager) {
+        this.activityInstanceDataManager = activityInstanceDataManager;
+        return this;
+    }
+
     public HistoricActivityInstanceDataManager getHistoricActivityInstanceDataManager() {
         return historicActivityInstanceDataManager;
     }
@@ -3672,6 +3742,15 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
     public ProcessEngineConfigurationImpl setExecutionEntityManager(ExecutionEntityManager executionEntityManager) {
         this.executionEntityManager = executionEntityManager;
+        return this;
+    }
+
+    public ActivityInstanceEntityManager getActivityInstanceEntityManager() {
+        return activityInstanceEntityManager;
+    }
+
+    public ProcessEngineConfigurationImpl setActivityInstanceEntityManager(ActivityInstanceEntityManager activityInstanceEntityManager) {
+        this.activityInstanceEntityManager = activityInstanceEntityManager;
         return this;
     }
 
@@ -3967,6 +4046,15 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         this.identityLinkSchemaManager = identityLinkSchemaManager;
         return this;
     }
+    
+    public SchemaManager getEntityLinkSchemaManager() {
+        return entityLinkSchemaManager;
+    }
+
+    public ProcessEngineConfigurationImpl setEntityLinkSchemaManager(SchemaManager entityLinkSchemaManager) {
+        this.entityLinkSchemaManager = entityLinkSchemaManager;
+        return this;
+    }
 
     public SchemaManager getJobSchemaManager() {
         return jobSchemaManager;
@@ -3974,6 +4062,15 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
     public ProcessEngineConfigurationImpl setJobSchemaManager(SchemaManager jobSchemaManager) {
         this.jobSchemaManager = jobSchemaManager;
+        return this;
+    }
+    
+    public boolean isEnableEntityLinks() {
+        return enableEntityLinks;
+    }
+
+    public ProcessEngineConfigurationImpl setEnableEntityLinks(boolean enableEntityLinks) {
+        this.enableEntityLinks = enableEntityLinks;
         return this;
     }
     

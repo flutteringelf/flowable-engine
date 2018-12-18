@@ -134,7 +134,7 @@ public class ContinueProcessOperation extends AbstractOperation {
     }
 
     protected void executeSynchronous(FlowNode flowNode) {
-        CommandContextUtil.getHistoryManager(commandContext).recordActivityStart(execution);
+        CommandContextUtil.getActivityInstanceEntityManager(commandContext).recordActivityStart(execution);
 
         // Execution listener: event 'start'
         if (CollectionUtil.isNotEmpty(flowNode.getExecutionListeners())) {
@@ -342,7 +342,7 @@ public class ContinueProcessOperation extends AbstractOperation {
             Iterator<BoundaryEvent> boundaryEventsIterator = boundaryEvents.iterator();
             Iterator<ExecutionEntity> boundaryEventExecutionsIterator = boundaryEventExecutions.iterator();
 
-            while (boundaryEventExecutionsIterator.hasNext() && boundaryEventExecutionsIterator.hasNext()) {
+            while (boundaryEventsIterator.hasNext() && boundaryEventExecutionsIterator.hasNext()) {
                 BoundaryEvent boundaryEvent = boundaryEventsIterator.next();
                 ExecutionEntity boundaryEventExecution = boundaryEventExecutionsIterator.next();
                 ActivityBehavior boundaryEventBehavior = ((ActivityBehavior) boundaryEvent.getBehavior());

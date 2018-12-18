@@ -81,6 +81,9 @@ public class HistoricTaskInstanceBaseResource {
         if (queryRequest.getProcessInstanceId() != null) {
             query.processInstanceId(queryRequest.getProcessInstanceId());
         }
+        if (queryRequest.getProcessInstanceIdWithChildren() != null) {
+            query.processInstanceIdWithChildren(queryRequest.getProcessInstanceIdWithChildren());
+        }
         if (queryRequest.getProcessBusinessKey() != null) {
             query.processInstanceBusinessKey(queryRequest.getProcessBusinessKey());
         }
@@ -257,7 +260,7 @@ public class HistoricTaskInstanceBaseResource {
         }
         
         if (restApiInterceptor != null) {
-            restApiInterceptor.accessHistoryTaskInfoWithQuery(query);
+            restApiInterceptor.accessHistoryTaskInfoWithQuery(query, queryRequest);
         }
 
         return paginateList(allRequestParams, queryRequest, query, "taskInstanceId", allowedSortProperties,

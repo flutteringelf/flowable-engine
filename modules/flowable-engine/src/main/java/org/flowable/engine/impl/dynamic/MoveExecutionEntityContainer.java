@@ -12,10 +12,11 @@
  */
 package org.flowable.engine.impl.dynamic;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.flowable.bpmn.model.BpmnModel;
 import org.flowable.bpmn.model.CallActivity;
@@ -31,11 +32,14 @@ public class MoveExecutionEntityContainer {
     protected boolean moveToSubProcessInstance;
     protected boolean directExecutionMigration;
     protected String callActivityId;
+    protected Integer callActivitySubProcessVersion;
     protected CallActivity callActivity;
+    protected String subProcessDefKey;
     protected ProcessDefinition subProcessDefinition;
     protected BpmnModel subProcessModel;
     protected BpmnModel processModel;
     protected ExecutionEntity superExecution;
+    protected String newAssigneeId;
     protected Map<String, ExecutionEntity> continueParentExecutionMap = new HashMap<>();
     protected Map<String, FlowElementMoveEntry> moveToFlowElementMap = new HashMap<>();
 
@@ -84,12 +88,28 @@ public class MoveExecutionEntityContainer {
         this.callActivityId = callActivityId;
     }
 
+    public Integer getCallActivitySubProcessVersion() {
+        return callActivitySubProcessVersion;
+    }
+
+    public void setCallActivitySubProcessVersion(Integer callActivitySubProcessVersion) {
+        this.callActivitySubProcessVersion = callActivitySubProcessVersion;
+    }
+
     public CallActivity getCallActivity() {
         return callActivity;
     }
 
     public void setCallActivity(CallActivity callActivity) {
         this.callActivity = callActivity;
+    }
+
+    public String getSubProcessDefKey() {
+        return subProcessDefKey;
+    }
+
+    public void setSubProcessDefKey(String subProcessDefKey) {
+        this.subProcessDefKey = subProcessDefKey;
     }
 
     public ProcessDefinition getSubProcessDefinition() {
@@ -120,6 +140,14 @@ public class MoveExecutionEntityContainer {
         return superExecution;
     }
 
+    public void setNewAssigneeId(String newAssigneeId) {
+        this.newAssigneeId = newAssigneeId;
+    }
+
+    public Optional<String> getNewAssigneeId() {
+        return Optional.ofNullable(newAssigneeId);
+    }
+
     public void setSuperExecution(ExecutionEntity superExecution) {
         this.superExecution = superExecution;
     }
@@ -148,8 +176,8 @@ public class MoveExecutionEntityContainer {
         return moveToFlowElementMap.get(activityId);
     }
 
-    public Collection<FlowElementMoveEntry> getMoveToFlowElements() {
-        return moveToFlowElementMap.values();
+    public List<FlowElementMoveEntry> getMoveToFlowElements() {
+        return new ArrayList<>(moveToFlowElementMap.values());
     }
 
     public static class FlowElementMoveEntry {

@@ -30,6 +30,7 @@ import org.flowable.dmn.api.DmnRuleService;
 import org.flowable.engine.FlowableEngineAgenda;
 import org.flowable.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.flowable.engine.impl.history.HistoryManager;
+import org.flowable.engine.impl.persistence.entity.ActivityInstanceEntityManager;
 import org.flowable.engine.impl.persistence.entity.AttachmentEntityManager;
 import org.flowable.engine.impl.persistence.entity.ByteArrayEntityManager;
 import org.flowable.engine.impl.persistence.entity.CommentEntityManager;
@@ -47,6 +48,9 @@ import org.flowable.engine.impl.persistence.entity.ProcessDefinitionInfoEntityMa
 import org.flowable.engine.impl.persistence.entity.PropertyEntityManager;
 import org.flowable.engine.impl.persistence.entity.ResourceEntityManager;
 import org.flowable.engine.impl.persistence.entity.TableDataManager;
+import org.flowable.entitylink.api.EntityLinkService;
+import org.flowable.entitylink.api.history.HistoricEntityLinkService;
+import org.flowable.entitylink.service.EntityLinkServiceConfiguration;
 import org.flowable.form.api.FormEngineConfigurationApi;
 import org.flowable.form.api.FormManagementService;
 import org.flowable.form.api.FormRepositoryService;
@@ -150,6 +154,40 @@ public class CommandContextUtil {
         }
         
         return historicIdentityLinkService;
+    }
+    
+    // ENTITY LINK SERVICE
+    public static EntityLinkServiceConfiguration getEntityLinkServiceConfiguration() {
+        return getEntityLinkServiceConfiguration(getCommandContext());
+    }
+    
+    public static EntityLinkServiceConfiguration getEntityLinkServiceConfiguration(CommandContext commandContext) {
+        return (EntityLinkServiceConfiguration) getProcessEngineConfiguration(commandContext).getServiceConfigurations()
+                        .get(EngineConfigurationConstants.KEY_ENTITY_LINK_SERVICE_CONFIG);
+    }
+    
+    public static EntityLinkService getEntityLinkService() {
+        return getEntityLinkService(getCommandContext());
+    }
+    
+    public static EntityLinkService getEntityLinkService(CommandContext commandContext) {
+        EntityLinkService entityLinkService = null;
+        EntityLinkServiceConfiguration entityLinkServiceConfiguration = getEntityLinkServiceConfiguration(commandContext);
+        if (entityLinkServiceConfiguration != null) {
+            entityLinkService = entityLinkServiceConfiguration.getEntityLinkService();
+        }
+        
+        return entityLinkService;
+    }
+    
+    public static HistoricEntityLinkService getHistoricEntityLinkService() {
+        HistoricEntityLinkService historicEntityLinkService = null;
+        EntityLinkServiceConfiguration entityLinkServiceConfiguration = getEntityLinkServiceConfiguration();
+        if (entityLinkServiceConfiguration != null) {
+            historicEntityLinkService = entityLinkServiceConfiguration.getHistoricEntityLinkService();
+        }
+        
+        return historicEntityLinkService;
     }
     
     // TASK SERVICE
@@ -509,14 +547,22 @@ public class CommandContextUtil {
         return getProcessEngineConfiguration(commandContext).getHistoricProcessInstanceEntityManager();
     }
     
+    public static ActivityInstanceEntityManager getActivityInstanceEntityManager() {
+        return getActivityInstanceEntityManager(getCommandContext());
+    }
+    
+    public static ActivityInstanceEntityManager getActivityInstanceEntityManager(CommandContext commandContext) {
+        return getProcessEngineConfiguration(commandContext).getActivityInstanceEntityManager();
+    }
+
     public static HistoricActivityInstanceEntityManager getHistoricActivityInstanceEntityManager() {
         return getHistoricActivityInstanceEntityManager(getCommandContext());
     }
-    
+
     public static HistoricActivityInstanceEntityManager getHistoricActivityInstanceEntityManager(CommandContext commandContext) {
         return getProcessEngineConfiguration(commandContext).getHistoricActivityInstanceEntityManager();
     }
-    
+
     public static HistoryManager getHistoryManager(CommandContext commandContext) {
         return getProcessEngineConfiguration(commandContext).getHistoryManager();
     }

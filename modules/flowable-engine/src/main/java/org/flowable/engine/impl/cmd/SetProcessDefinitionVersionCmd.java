@@ -27,6 +27,7 @@ import org.flowable.engine.impl.persistence.deploy.DeploymentManager;
 import org.flowable.engine.impl.persistence.entity.ExecutionEntity;
 import org.flowable.engine.impl.persistence.entity.ExecutionEntityManager;
 import org.flowable.engine.impl.util.CommandContextUtil;
+import org.flowable.engine.impl.util.Flowable5Util;
 import org.flowable.engine.impl.util.ProcessDefinitionUtil;
 import org.flowable.engine.repository.ProcessDefinition;
 import org.flowable.engine.runtime.ProcessInstance;
@@ -90,6 +91,12 @@ public class SetProcessDefinitionVersionCmd implements Command<Void>, Serializab
         ProcessDefinition newProcessDefinition = deploymentCache
                 .findDeployedProcessDefinitionByKeyAndVersionAndTenantId(currentProcessDefinition.getKey(), processDefinitionVersion, currentProcessDefinition.getTenantId());
 
+        if (Flowable5Util.isFlowable5ProcessDefinition(currentProcessDefinition, commandContext) && !Flowable5Util
+            .isFlowable5ProcessDefinition(newProcessDefinition, commandContext)) {
+            throw new FlowableIllegalArgumentException("The current process definition (id = '" + currentProcessDefinition.getId() + "') is a v5 definition."
+                + " However the new process definition (id = '" + newProcessDefinition.getId() + "') is not a v5 definition.");
+        }
+
         validateAndSwitchVersionOfExecution(commandContext, processInstance, newProcessDefinition);
 
         // switch the historic process instance to the new process definition version
@@ -118,10 +125,10 @@ public class SetProcessDefinitionVersionCmd implements Command<Void>, Serializab
         execution.setProcessDefinitionKey(newProcessDefinition.getKey());
 
         // and change possible existing tasks (as the process definition id is stored there too)
-        List<TaskEntity> tasks = CommandContextUtil.getTaskService().findTasksByExecutionId(execution.getId());
+        List<TaskEntity> tasks = CommandContextUtil.getTaskService(commandContext).findTasksByExecutionId(execution.getId());
         for (TaskEntity taskEntity : tasks) {
             taskEntity.setProcessDefinitionId(newProcessDefinition.getId());
-            CommandContextUtil.getHistoryManager(commandContext).recordTaskInfoChange(taskEntity);
+            CommandContextUtil.getActivityInstanceEntityManager(commandContext).recordTaskInfoChange(taskEntity);
         }
     }
 

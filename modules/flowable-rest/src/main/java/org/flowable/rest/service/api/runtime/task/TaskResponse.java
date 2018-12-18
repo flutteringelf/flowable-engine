@@ -1,9 +1,9 @@
 /* Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -44,6 +44,8 @@ public class TaskResponse {
     protected Date dueDate;
     protected int priority;
     protected boolean suspended;
+    @JsonSerialize(using = DateToStringSerializer.class, as = Date.class)
+    protected Date claimTime;
     protected String taskDefinitionKey;
     protected String scopeDefinitionId;
     protected String scopeId;
@@ -64,6 +66,9 @@ public class TaskResponse {
 
     protected List<RestVariable> variables = new ArrayList<>();
 
+    public TaskResponse() {
+    }
+
     public TaskResponse(Task task) {
         setId(task.getId());
         setOwner(task.getOwner());
@@ -75,6 +80,7 @@ public class TaskResponse {
         setDueDate(task.getDueDate());
         setPriority(task.getPriority());
         setSuspended(task.isSuspended());
+        setClaimTime(task.getClaimTime());
         setTaskDefinitionKey(task.getTaskDefinitionKey());
         setParentTaskId(task.getParentTaskId());
         setExecutionId(task.getExecutionId());
@@ -194,6 +200,15 @@ public class TaskResponse {
         this.suspended = suspended;
     }
 
+    @ApiModelProperty(example = "2018-04-17T10:17:43.902+0000", dataType = "string")
+    public Date getClaimTime() {
+        return claimTime;
+    }
+
+    public void setClaimTime(Date claimTime) {
+        this.claimTime = claimTime;
+    }
+
     @ApiModelProperty(example = "theTask")
     public String getTaskDefinitionKey() {
         return taskDefinitionKey;
@@ -295,7 +310,7 @@ public class TaskResponse {
     public void addVariable(RestVariable variable) {
         variables.add(variable);
     }
-    
+
     @ApiModelProperty(example = "12")
     public String getScopeDefinitionId() {
         return scopeDefinitionId;

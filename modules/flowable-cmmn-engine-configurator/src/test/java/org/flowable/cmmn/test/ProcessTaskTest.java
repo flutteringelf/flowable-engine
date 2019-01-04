@@ -45,6 +45,7 @@ import org.flowable.entitylink.api.HierarchyType;
 import org.flowable.entitylink.api.history.HistoricEntityLink;
 import org.flowable.task.api.Task;
 import org.flowable.task.api.history.HistoricTaskInstance;
+import org.flowable.task.api.history.HistoricTaskLogEntry;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -285,6 +286,13 @@ public class ProcessTaskTest extends AbstractProcessEngineIntegrationTest {
                 HistoricTaskInstance historicTaskInstance = processEngine.getProcessEngineConfiguration().getHistoryService().createHistoricTaskInstanceQuery().singleResult();
                 processEngine.getProcessEngineConfiguration().getHistoryService().deleteHistoricTaskInstance(historicTaskInstance.getId());
             }
+
+            if (processEngine.getHistoryService().createHistoricTaskLogEntryQuery().count() > 0) {
+                List<HistoricTaskLogEntry> historicTaskLogEntries = processEngine.getHistoryService().createHistoricTaskLogEntryQuery().list();
+                for (HistoricTaskLogEntry historicTaskLogEntry : historicTaskLogEntries) {
+                    processEngine.getHistoryService().deleteHistoricTaskLogEntry(historicTaskLogEntry.getLogNumber());
+                }
+            }
         }
     }
     
@@ -435,14 +443,15 @@ public class ProcessTaskTest extends AbstractProcessEngineIntegrationTest {
         if (tenantId != null) {
             caseDefinitionQuery.caseDefinitionTenantId(tenantId);
         }
+        
         String caseDefinitionId = caseDefinitionQuery.singleResult().getId();
         CaseInstanceBuilder caseInstanceBuilder = cmmnRuntimeService.createCaseInstanceBuilder().
                 caseDefinitionId(caseDefinitionId);
         if (tenantId != null) {
             caseInstanceBuilder.tenantId(tenantId);
         }
-        CaseInstance caseInstance = caseInstanceBuilder.
-                start();
+        
+        CaseInstance caseInstance = caseInstanceBuilder.start();
 
         assertEquals(0, cmmnHistoryService.createHistoricMilestoneInstanceQuery().count());
         assertEquals(0L, processEngineRuntimeService.createProcessInstanceQuery().count());
@@ -613,6 +622,11 @@ public class ProcessTaskTest extends AbstractProcessEngineIntegrationTest {
             CaseInstance caseInstance = startCaseInstanceWithOneTaskProcess("flowable");
             List<Task> processTasks = processEngine.getTaskService().createTaskQuery().list();
             assertEquals(1, processTasks.size());
+            assertEquals("flowable", processTasks.get(0).getTenantId());
+            ProcessInstance processInstance = processEngine.getRuntimeService().createProcessInstanceQuery()
+                            .processInstanceId(processTasks.get(0).getProcessInstanceId()).singleResult();
+            assertNotNull(processInstance);
+            assertEquals("flowable", processInstance.getTenantId());
 
             // Non-blocking process task, plan item should have been completed
             List<PlanItemInstance> planItemInstances = cmmnRuntimeService.createPlanItemInstanceQuery()
@@ -627,6 +641,80 @@ public class ProcessTaskTest extends AbstractProcessEngineIntegrationTest {
             processEngine.getTaskService().complete(processTasks.get(0).getId());
             assertEquals(0, processEngineRuntimeService.createProcessInstanceQuery().count());
         } finally {
+            processEngineRepositoryService.deleteDeployment(deployment.getId(), true);
+        }
+    }
+    
+    @Test
+    @CmmnDeployment(
+        resources = {"org/flowable/cmmn/test/ProcessTaskTest.testOneTaskProcessNonBlocking.cmmn"},
+        tenantId = "someTenant"
+    )
+    public void testOneTaskProcessGlobalFallbackToDefaultTenant() {
+        Deployment deployment = this.processEngineRepositoryService.createDeployment().
+            addClasspathResource("org/flowable/cmmn/test/oneTaskProcess.bpmn20.xml").
+            tenantId("defaultFlowable").
+            deploy();
+        
+        String originalDefaultTenantValue = this.processEngineConfiguration.getDefaultTenantValue();
+        this.processEngineConfiguration.setFallbackToDefaultTenant(true);
+        this.processEngineConfiguration.setDefaultTenantValue("defaultFlowable");
+        
+        try {
+            CaseInstance caseInstance = startCaseInstanceWithOneTaskProcess("someTenant");
+            List<Task> processTasks = processEngine.getTaskService().createTaskQuery().list();
+            assertEquals(1, processTasks.size());
+            assertEquals("someTenant", processTasks.get(0).getTenantId());
+            ProcessInstance processInstance = processEngine.getRuntimeService().createProcessInstanceQuery()
+                            .processInstanceId(processTasks.get(0).getProcessInstanceId()).singleResult();
+            assertNotNull(processInstance);
+            assertEquals("someTenant", processInstance.getTenantId());
+
+            // Non-blocking process task, plan item should have been completed
+            List<PlanItemInstance> planItemInstances = cmmnRuntimeService.createPlanItemInstanceQuery()
+                .caseInstanceId(caseInstance.getId())
+                .planItemInstanceState(PlanItemInstanceState.ACTIVE)
+                .list();
+            assertEquals(1, planItemInstances.size());
+            assertEquals("Task Two", planItemInstances.get(0).getName());
+
+            assertEquals(1, cmmnHistoryService.createHistoricMilestoneInstanceQuery().count());
+
+            processEngine.getTaskService().complete(processTasks.get(0).getId());
+            assertEquals(0, processEngineRuntimeService.createProcessInstanceQuery().count());
+            
+        } finally {
+            this.processEngineConfiguration.setFallbackToDefaultTenant(false);
+            this.processEngineConfiguration.setDefaultTenantValue(originalDefaultTenantValue);
+            processEngineRepositoryService.deleteDeployment(deployment.getId(), true);
+        }
+    }
+    
+    @Test
+    @CmmnDeployment(
+        resources = {"org/flowable/cmmn/test/ProcessTaskTest.testOneTaskProcessNonBlocking.cmmn"},
+        tenantId = "someTenant"
+    )
+    public void testOneTaskProcessGlobalFallbackToDefaultTenantNoDefinition() {
+        Deployment deployment = this.processEngineRepositoryService.createDeployment().
+            addClasspathResource("org/flowable/cmmn/test/oneTaskProcess.bpmn20.xml").
+            tenantId("tenant1").
+            deploy();
+        
+        String originalDefaultTenantValue = this.processEngineConfiguration.getDefaultTenantValue();
+        this.processEngineConfiguration.setFallbackToDefaultTenant(true);
+        this.processEngineConfiguration.setDefaultTenantValue("defaultFlowable");
+        
+        try {
+            startCaseInstanceWithOneTaskProcess("someTenant");
+            fail();
+            
+        } catch (FlowableObjectNotFoundException e) {
+            // expected
+            
+        } finally {
+            this.processEngineConfiguration.setFallbackToDefaultTenant(false);
+            this.processEngineConfiguration.setDefaultTenantValue(originalDefaultTenantValue);
             processEngineRepositoryService.deleteDeployment(deployment.getId(), true);
         }
     }

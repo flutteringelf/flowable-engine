@@ -60,6 +60,7 @@ import org.flowable.cmmn.engine.impl.deployer.CmmnDeployer;
 import org.flowable.cmmn.engine.impl.deployer.CmmnDeploymentManager;
 import org.flowable.cmmn.engine.impl.el.CmmnExpressionManager;
 import org.flowable.cmmn.engine.impl.form.DefaultFormFieldHandler;
+import org.flowable.cmmn.engine.impl.function.IsStageCompletableExpressionFunction;
 import org.flowable.cmmn.engine.impl.history.CmmnHistoryManager;
 import org.flowable.cmmn.engine.impl.history.CmmnHistoryTaskManager;
 import org.flowable.cmmn.engine.impl.history.CmmnHistoryVariableManager;
@@ -682,6 +683,7 @@ public class CmmnEngineConfiguration extends AbstractEngineConfiguration impleme
     protected List<HistoryJsonTransformer> customHistoryJsonTransformers;
 
     protected FormFieldHandler formFieldHandler;
+    protected boolean isFormFieldValidationEnabled;
 
     protected BusinessCalendarManager businessCalendarManager;
 
@@ -885,16 +887,15 @@ public class CmmnEngineConfiguration extends AbstractEngineConfiguration impleme
             shortHandExpressionFunctions.add(new VariableLowerThanOrEqualsExpressionFunction(variableScopeName));
             shortHandExpressionFunctions.add(new VariableGreaterThanExpressionFunction(variableScopeName));
             shortHandExpressionFunctions.add(new VariableGreaterThanOrEqualsExpressionFunction(variableScopeName));
+
+            shortHandExpressionFunctions.add(new IsStageCompletableExpressionFunction());
         }
     }
     
     public void initFunctionDelegates() {
         if (flowableFunctionDelegates == null) {
             flowableFunctionDelegates = new ArrayList<>();
-            
-            for (FlowableShortHandExpressionFunction expressionFunction : shortHandExpressionFunctions) {
-                flowableFunctionDelegates.add(expressionFunction);
-            }
+            flowableFunctionDelegates.addAll(shortHandExpressionFunctions);
         }
         
         if (customFlowableFunctionDelegates != null) {
@@ -905,11 +906,7 @@ public class CmmnEngineConfiguration extends AbstractEngineConfiguration impleme
     public void initExpressionEnhancers() {
         if (expressionEnhancers == null) {
             expressionEnhancers = new ArrayList<>();
-            
-            for (FlowableShortHandExpressionFunction expressionFunction : shortHandExpressionFunctions) {
-                expressionEnhancers.add(expressionFunction);
-            }
-            
+            expressionEnhancers.addAll(shortHandExpressionFunctions);
         }
         
         if (customExpressionEnhancers != null) {
@@ -2220,7 +2217,7 @@ public class CmmnEngineConfiguration extends AbstractEngineConfiguration impleme
             planItemInstanceLifecycleListeners = new HashMap<>();
         }
         planItemInstanceLifecycleListeners
-            .computeIfAbsent(planItemDefinitionType, key -> new ArrayList<PlanItemInstanceLifecycleListener>())
+            .computeIfAbsent(planItemDefinitionType, key -> new ArrayList<>())
             .add(planItemInstanceLifeCycleListener);
     }
 
@@ -3256,6 +3253,15 @@ public class CmmnEngineConfiguration extends AbstractEngineConfiguration impleme
 
     public CmmnEngineConfiguration setFormFieldHandler(FormFieldHandler formFieldHandler) {
         this.formFieldHandler = formFieldHandler;
+        return this;
+    }
+
+    public boolean isFormFieldValidationEnabled() {
+        return this.isFormFieldValidationEnabled;
+    }
+
+    public CmmnEngineConfiguration setFormFieldValidationEnabled(boolean flag) {
+        this.isFormFieldValidationEnabled = flag;
         return this;
     }
 

@@ -823,6 +823,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     protected FailedJobCommandFactory failedJobCommandFactory;
     
     protected FormFieldHandler formFieldHandler;
+    protected boolean isFormFieldValidationEnabled;
 
     /**
      * Set this to true if you want to have extra checks on the BPMN xml that is parsed. See http://www.jorambarrez.be/blog/2013/02/19/uploading-a-funny-xml -can-bring-down-your-server/
@@ -2363,7 +2364,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
             this.formFieldHandler = new DefaultFormFieldHandler();
         }
     }
-    
+
     public void initShortHandExpressionFunctions() {
         if (shortHandExpressionFunctions == null) {
             shortHandExpressionFunctions = new ArrayList<>();
@@ -2394,10 +2395,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         if (this.flowableFunctionDelegates == null) {
             this.flowableFunctionDelegates = new ArrayList<>();
             this.flowableFunctionDelegates.add(new FlowableDateFunctionDelegate());
-            
-            for (FlowableShortHandExpressionFunction expressionFunction : shortHandExpressionFunctions) {
-                flowableFunctionDelegates.add(expressionFunction);
-            }
+            flowableFunctionDelegates.addAll(shortHandExpressionFunctions);
         }
 
         if (this.customFlowableFunctionDelegates != null) {
@@ -2408,11 +2406,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     public void initExpressionEnhancers() {
         if (expressionEnhancers == null) {
             expressionEnhancers = new ArrayList<>();
-            
-            for (FlowableShortHandExpressionFunction expressionFunction : shortHandExpressionFunctions) {
-                expressionEnhancers.add(expressionFunction);
-            }
-            
+            expressionEnhancers.addAll(shortHandExpressionFunctions);
         }
         
         if (customExpressionEnhancers != null) {
@@ -2500,6 +2494,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         return Collections.emptyList();
     }
     
+    @Override
     public ProcessEngineConfigurationImpl addConfigurator(EngineConfigurator configurator) {
         super.addConfigurator(configurator);
         return this;
@@ -3117,6 +3112,12 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     }
 
     @Override
+    public ProcessEngineConfigurationImpl addCustomSessionFactory(SessionFactory sessionFactory) {
+        super.addCustomSessionFactory(sessionFactory);
+        return this;
+    }
+
+    @Override
     public ProcessEngineConfigurationImpl setCustomSessionFactories(List<SessionFactory> customSessionFactories) {
         this.customSessionFactories = customSessionFactories;
         return this;
@@ -3443,6 +3444,15 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
     public ProcessEngineConfigurationImpl setFormFieldHandler(FormFieldHandler formFieldHandler) {
         this.formFieldHandler = formFieldHandler;
+        return this;
+    }
+
+    public boolean isFormFieldValidationEnabled() {
+        return this.isFormFieldValidationEnabled;
+    }
+
+    public ProcessEngineConfigurationImpl setFormFieldValidationEnabled(boolean flag) {
+        this.isFormFieldValidationEnabled = flag;
         return this;
     }
 

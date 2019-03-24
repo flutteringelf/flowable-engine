@@ -14,6 +14,7 @@ package org.flowable.standalone.history.async;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -45,6 +46,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
+    
+    private SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     public AsyncHistoryTest() {
         super("asyncHistoryTest");
@@ -175,11 +178,24 @@ public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
         final List<HistoryJob> jobs = managementService.createHistoryJobQuery().list();
         assertTrue(jobs.size() > 0);
 
-        waitForHistoryJobExecutorToProcessAllJobs(70000L, 100L);
+        waitForHistoryJobExecutorToProcessAllJobs(70000L, 200L);
         assertNull(managementService.createHistoryJobQuery().singleResult());
 
-        // 2003 -> (start, 1) + -->(1) + (service task, 500) + -->(500) + (gateway, 500), + <--(499) + -->(1) + (end, 1)
-        assertEquals(2003, historyService.createHistoricActivityInstanceQuery().processInstanceId(processInstanceId).count());
+        // 203 -> (start, 1) + -->(1) + (service task, 50) + -->(50) + (gateway, 50), + <--(49) + -->(1) + (end, 1)
+        assertEquals(203, historyService.createHistoricActivityInstanceQuery().processInstanceId(processInstanceId).count());
+    }
+
+    @Test
+    public void testCreateTaskHistory() {
+        Task task = taskService.createTaskBuilder().id("task1").create();
+        assertNull(historyService.createHistoricTaskInstanceQuery().taskId("task1").singleResult());
+
+        waitForHistoryJobExecutorToProcessAllJobs(70000L, 200L);
+
+        assertNotNull(historyService.createHistoricTaskInstanceQuery().taskId("task1").singleResult());
+        assertEquals("task1", task.getId());
+
+        taskService.deleteTask(task.getId(), true);
     }
 
     @Test
@@ -384,6 +400,19 @@ public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
     }
 
     @Test
+    public void testSetTaskStartTime() {
+        Task task = startOneTaskprocess();
+
+        finishOneTaskProcess(task);
+
+        waitForHistoryJobExecutorToProcessAllJobs(7000L, 100L);
+        HistoricTaskInstance historicTaskInstance = historyService.createHistoricTaskInstanceQuery().singleResult();
+        assertNotNull(historicTaskInstance.getStartTime());
+        assertNotNull(historicTaskInstance.getEndTime());
+        assertEquals(task.getCreateTime(), historicTaskInstance.getStartTime());
+    }
+
+    @Test
     public void testSetTaskParentId() {
         Task parentTask1 = taskService.newTask();
         parentTask1.setName("Parent task 1");
@@ -476,6 +505,8 @@ public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
     @Test
     public void createUserTaskLogEntity() {
         HistoricTaskLogEntryBuilder historicTaskLogEntryBuilder = historyService.createHistoricTaskLogEntryBuilder();
+        
+        Date todayDate = new Date();
         historicTaskLogEntryBuilder.taskId("1");
         historicTaskLogEntryBuilder.type("testType");
         historicTaskLogEntryBuilder.userId("testUserId");
@@ -483,10 +514,10 @@ public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
         historicTaskLogEntryBuilder.processInstanceId("processInstanceId");
         historicTaskLogEntryBuilder.processDefinitionId("testDefinitionId");
         historicTaskLogEntryBuilder.executionId("testExecutionId");
-        historicTaskLogEntryBuilder.timeStamp(new Date(0));
+        historicTaskLogEntryBuilder.timeStamp(todayDate);
         historicTaskLogEntryBuilder.tenantId("testTenant");
 
-        historicTaskLogEntryBuilder.add();
+        historicTaskLogEntryBuilder.create();
 
         HistoricTaskLogEntry historicTaskLogEntry = null;
         try {
@@ -504,7 +535,7 @@ public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
             assertThat(historicTaskLogEntry.getExecutionId()).isEqualTo("testExecutionId");
             assertThat(historicTaskLogEntry.getData()).isEqualTo("testData");
             assertThat(historicTaskLogEntry.getLogNumber()).isGreaterThan(0L);
-            assertThat(historicTaskLogEntry.getTimeStamp()).isEqualTo(new Date(0));
+            assertThat(simpleDateFormat.format(historicTaskLogEntry.getTimeStamp())).isEqualTo(simpleDateFormat.format(todayDate));
             assertThat(historicTaskLogEntry.getTenantId()).isEqualTo("testTenant");
 
         } finally {
@@ -527,7 +558,7 @@ public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
         taskService.saveTask(task);
         taskService.setAssignee(task.getId(), "newAssignee");
         taskService.setOwner(task.getId(), "newOwner");
-        taskService.setDueDate(task.getId(), new Date(0));
+        taskService.setDueDate(task.getId(), new Date());
         taskService.addUserIdentityLink(task.getId(), "testUser", IdentityLinkType.PARTICIPANT);
         taskService.addGroupIdentityLink(task.getId(), "testGroup", IdentityLinkType.PARTICIPANT);
         taskService.deleteUserIdentityLink(task.getId(), "testUser", IdentityLinkType.PARTICIPANT);
@@ -554,14 +585,13 @@ public class AsyncHistoryTest extends CustomConfigurationFlowableTestCase {
         assertEquals(1l,
             historyService.createHistoricTaskLogEntryQuery().taskId(task.getId()).type(HistoricTaskLogEntryType.USER_TASK_DUEDATE_CHANGED.name()).count());
         assertEquals(2l,
-            historyService.createHistoricTaskLogEntryQuery().taskId(task.getId()).type(HistoricTaskLogEntryType.USER_TASK_SUSPENSIONSTATE_CHANGED.name())
-                .count());
+            historyService.createHistoricTaskLogEntryQuery().taskId(task.getId()).type(HistoricTaskLogEntryType.USER_TASK_SUSPENSIONSTATE_CHANGED.name()).count());
         assertEquals(2l,
             historyService.createHistoricTaskLogEntryQuery().taskId(task.getId()).type(HistoricTaskLogEntryType.USER_TASK_IDENTITY_LINK_ADDED.name()).count());
         assertEquals(2l,
             historyService.createHistoricTaskLogEntryQuery().taskId(task.getId()).type(HistoricTaskLogEntryType.USER_TASK_IDENTITY_LINK_REMOVED.name()).count());
         assertEquals(1l,
-                historyService.createHistoricTaskLogEntryQuery().taskId(task.getId()).type(HistoricTaskLogEntryType.USER_TASK_COMPLETED.name()).count());
+            historyService.createHistoricTaskLogEntryQuery().taskId(task.getId()).type(HistoricTaskLogEntryType.USER_TASK_COMPLETED.name()).count());
     }
 
     @Test

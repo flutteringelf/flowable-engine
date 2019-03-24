@@ -314,7 +314,9 @@ public class BaseSpringRestTestCase {
             int responseStatusCode = response.getStatusLine().getStatusCode();
             if (expectedStatusCode != responseStatusCode) {
                 LOGGER.info("Wrong status code : {}, but should be {}", responseStatusCode, expectedStatusCode);
-                LOGGER.info("Response body: {}", IOUtils.toString(response.getEntity().getContent()));
+                if (response.getEntity() != null && response.getEntity().getContent() != null) {
+                    LOGGER.info("Response body: {}", IOUtils.toString(response.getEntity().getContent()));
+                }
             }
 
             Assert.assertEquals(expectedStatusCode, responseStatusCode);
@@ -326,6 +328,13 @@ public class BaseSpringRestTestCase {
         }
     }
 
+    public JsonNode readContent(CloseableHttpResponse response) {
+        try {
+            return objectMapper.readTree(response.getEntity().getContent());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
     public void closeResponse(CloseableHttpResponse response) {
         if (response != null) {
             try {
@@ -361,7 +370,7 @@ public class BaseSpringRestTestCase {
             if (!TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK.contains(tableNameWithoutPrefix)) {
                 Long count = tableCounts.get(tableName);
                 if (count != 0L) {
-                    outputMessage.append("  ").append(tableName).append(": ").append(count.toString()).append(" record(s) ");
+                    outputMessage.append("  ").append(tableName).append(": ").append(count).append(" record(s) ");
                 }
             }
         }

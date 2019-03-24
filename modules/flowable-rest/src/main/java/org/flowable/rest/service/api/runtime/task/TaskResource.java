@@ -23,6 +23,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.api.FlowableForbiddenException;
 import org.flowable.common.engine.api.FlowableIllegalArgumentException;
+import org.flowable.common.engine.api.scope.ScopeTypes;
 import org.flowable.form.api.FormInfo;
 import org.flowable.form.model.SimpleFormModel;
 import org.flowable.rest.service.api.FormHandlerRestApiInterceptor;
@@ -89,17 +90,20 @@ public class TaskResource extends TaskBaseResource {
         // Populate the task properties based on the request
         populateTaskFromRequest(task, taskRequest);
 
+        if (restApiInterceptor != null) {
+            restApiInterceptor.updateTask(task, taskRequest);
+        }
+
         // Save the task and fetch again, it's possible that an
         // assignment-listener has updated
-        // fields after it was saved so we can't use the in-memory task
+        // fields after it was saved so we can not use the in-memory task
         taskService.saveTask(task);
         task = taskService.createTaskQuery().taskId(task.getId()).singleResult();
 
         return restResponseFactory.createTaskResponse(task);
     }
 
-    @ApiOperation(value = "Tasks actions", tags = { "Tasks" },
-            notes = "")
+    @ApiOperation(value = "Tasks actions", tags = { "Tasks" }, notes = "")
     @ApiResponses(value = {
             @ApiResponse(code = 200, message = "Indicates the action was executed."),
             @ApiResponse(code = 400, message = "When the body contains an invalid value or when the assignee is missing when the action requires it."),
@@ -152,8 +156,14 @@ public class TaskResource extends TaskBaseResource {
 
         Task taskToDelete = getTaskFromRequest(taskId);
         if (taskToDelete.getExecutionId() != null) {
-            // Can't delete a task that is part of a process instance
-            throw new FlowableForbiddenException("Cannot delete a task that is part of a process-instance.");
+            // Can not delete a task that is part of a process instance
+            throw new FlowableForbiddenException("Cannot delete a task that is part of a process instance.");
+        } else if (taskToDelete.getScopeId() != null && ScopeTypes.CMMN.equals(taskToDelete.getScopeType())) {
+            throw new FlowableForbiddenException("Cannot delete a task that is part of a case instance.");
+        }
+
+        if (restApiInterceptor != null) {
+            restApiInterceptor.deleteTask(taskToDelete);
         }
 
         if (cascadeHistory != null) {

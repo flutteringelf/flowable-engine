@@ -13,6 +13,8 @@
 
 package org.flowable.rest.service.api.runtime;
 
+import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -351,6 +353,83 @@ public class TaskResourceTest extends BaseSpringRestTestCase {
     }
 
     /**
+     * Test deleting a single task linked with a process instance. DELETE runtime/tasks/{taskId}
+     */
+    @Test
+    @Deployment(resources = "org/flowable/rest/service/api/oneTaskProcess.bpmn20.xml")
+    public void testDeleteTaskLinkedWithAProcessInstance() throws Exception {
+        String processInstanceId = runtimeService.createProcessInstanceBuilder()
+            .processDefinitionKey("oneTaskProcess")
+            .start()
+            .getId();
+
+        // 1. Simple delete
+        Task task = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+        assertThat(task.getExecutionId()).as("task executionId").isNotNull();
+        String taskId = task.getId();
+
+        // Execute the request
+        HttpDelete httpDelete = new HttpDelete(SERVER_URL_PREFIX + RestUrls.createRelativeResourceUrl(RestUrls.URL_TASK, taskId));
+        CloseableHttpResponse response = executeRequest(httpDelete, HttpStatus.SC_FORBIDDEN);
+        JsonNode responseNode = readContent(response);
+        closeResponse(response);
+
+        assertThatJson(responseNode)
+            .isEqualTo("{"
+                + "message: 'Forbidden',"
+                + "exception: 'Cannot delete a task that is part of a process instance.'"
+                + "}");
+
+        assertThat(taskService.createTaskQuery().taskId(task.getId()).singleResult()).isNotNull();
+
+        if (processEngineConfiguration.getHistoryLevel().isAtLeast(HistoryLevel.AUDIT)) {
+            // Check that the historic task has not been deleted
+            assertThat(historyService.createHistoricTaskInstanceQuery().taskId(taskId).singleResult()).isNotNull();
+        }
+
+        // 2. Cascade delete
+        // Execute the request
+        httpDelete = new HttpDelete(SERVER_URL_PREFIX + RestUrls.createRelativeResourceUrl(RestUrls.URL_TASK, taskId) + "?cascadeHistory=true");
+        response = executeRequest(httpDelete, HttpStatus.SC_FORBIDDEN);
+        responseNode = readContent(response);
+        closeResponse(response);
+
+        assertThatJson(responseNode)
+            .isEqualTo("{"
+                + "message: 'Forbidden',"
+                + "exception: 'Cannot delete a task that is part of a process instance.'"
+                + "}");
+
+        assertThat(taskService.createTaskQuery().taskId(task.getId()).singleResult()).isNotNull();
+
+        if (processEngineConfiguration.getHistoryLevel().isAtLeast(HistoryLevel.AUDIT)) {
+            // Check that the historic task has been deleted
+            assertThat(historyService.createHistoricTaskInstanceQuery().taskId(taskId).singleResult()).isNotNull();
+        }
+
+        // 3. Delete with reason
+        // Execute the request
+        httpDelete = new HttpDelete(SERVER_URL_PREFIX + RestUrls.createRelativeResourceUrl(RestUrls.URL_TASK, taskId) + "?deleteReason=fortestingpurposes");
+        response = executeRequest(httpDelete, HttpStatus.SC_FORBIDDEN);
+        responseNode = readContent(response);
+        closeResponse(response);
+
+        assertThatJson(responseNode)
+            .isEqualTo("{"
+                + "message: 'Forbidden',"
+                + "exception: 'Cannot delete a task that is part of a process instance.'"
+                + "}");
+
+        assertThat(taskService.createTaskQuery().taskId(task.getId()).singleResult()).isNotNull();
+
+        if (processEngineConfiguration.getHistoryLevel().isAtLeast(HistoryLevel.AUDIT)) {
+            // Check that the historic task has been deleted and
+            // delete-reason has been set
+            assertThat(historyService.createHistoricTaskInstanceQuery().taskId(taskId).singleResult()).isNotNull();
+        }
+    }
+
+    /**
      * Test updating an unexisting task. PUT runtime/tasks/{taskId}
      */
     @Test
@@ -391,7 +470,7 @@ public class TaskResourceTest extends BaseSpringRestTestCase {
             httpPost.setEntity(new StringEntity(requestNode.toString()));
             closeResponse(executeRequest(httpPost, HttpStatus.SC_OK));
 
-            // Task shouldn't exist anymore
+            // Task should not exist anymore
             task = taskService.createTaskQuery().taskId(taskId).singleResult();
             assertNull(task);
 
@@ -583,7 +662,7 @@ public class TaskResourceTest extends BaseSpringRestTestCase {
             assertEquals("newAssignee", task.getAssignee());
             assertEquals(0L, taskService.createTaskQuery().taskCandidateUser("newAssignee").count());
 
-            // Claiming with the same user shouldn't cause an exception
+            // Claiming with the same user should not cause an exception
             httpPost.setEntity(new StringEntity(requestNode.toString()));
             closeResponse(executeRequest(httpPost, HttpStatus.SC_OK));
             task = taskService.createTaskQuery().taskId(taskId).singleResult();
@@ -688,7 +767,7 @@ public class TaskResourceTest extends BaseSpringRestTestCase {
             assertEquals("initialAssignee", task.getOwner());
             assertEquals(DelegationState.PENDING, task.getDelegationState());
 
-            // Delegating again shouldn't cause an exception and should delegate
+            // Delegating again should not cause an exception and should delegate
             // to user without affecting initial delegator (owner)
             requestNode.put("assignee", "anotherAssignee");
             httpPost.setEntity(new StringEntity(requestNode.toString()));
@@ -733,7 +812,7 @@ public class TaskResourceTest extends BaseSpringRestTestCase {
             assertEquals("initialAssignee", task.getOwner());
             assertEquals(DelegationState.RESOLVED, task.getDelegationState());
 
-            // Resolving again shouldn't cause an exception
+            // Resolving again should not cause an exception
             httpPost.setEntity(new StringEntity(requestNode.toString()));
             closeResponse(executeRequest(httpPost, HttpStatus.SC_OK));
             task = taskService.createTaskQuery().taskId(taskId).singleResult();
